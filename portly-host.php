@@ -111,7 +111,7 @@ class PortlyHost {
 	}
 
 	public function option_siteurl($url) {
-		return $this->home($url);
+		return $this->option_home($url);
 	}
 
 	public function plugins_url($url) {
