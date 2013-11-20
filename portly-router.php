@@ -1,19 +1,73 @@
 <?php
 /*
-Plugin Name: Portly Host
-Plugin URI: http://github.com/portly/portly-host/
-Description: Alters all WordPress-generated URLs according to the servers current hostname and handles reverse-proxy HTTPS connections. Based initially on Any-hostname plugin.
-Author: Kelly Martin
-Version: 1.0.0
+Plugin Name: Portly Router
+Plugin URI: http://github.com/portly/portly-router/
+Description: Zero-config plugin to use with <a href="https://getportly.com">Portly</a>.  Alters all WordPress-generated URLs according to the server's current hostname and handles reverse-proxy HTTPS connections. Essentially allows using a public domain without configuring VirtualHosts or altering the Site URL.
+Author: Portly
+Version: 1.1.0
 Author URI: https://getportly.com
-*/
+ */
 
-class PortlyHost {
+class PortlyRouter {
+
+  const MU_FILE = "/portly-router-mu.php";
 
   public function __construct() {
+
+    $this->is_forwarding = array_key_exists('HTTP_X_FORWARDED_HOST', $_SERVER);
+    $this->set_site_path_regex();
     $this->detect_ssl();
     $this->enable_filters();
+
+    if ( defined('PORTLY_MU_INSTALLED') ) {
+      $this->define_cookie_paths();
+      $this->alter_request_uri();
+    }
+
     add_action('load-options-general.php', array(&$this, 'general_options_page_init'));
+    register_activation_hook(__FILE__, array(&$this, 'activate'));
+    register_deactivation_hook(__FILE__, array(&$this, 'deactivate'));
+
+  }
+
+
+  /* Public: This runs on the activation of the plugin.  It sets up the Must-Use plugin
+   * so that we can override constants defined before regular plugins.
+   *
+   * Returns nothing.
+   */
+  public function activate() {
+
+	  if ( ! is_dir(WPMU_PLUGIN_DIR)) mkdir(WPMU_PLUGIN_DIR);
+
+ 	  $copy_from = __DIR__ . self::MU_FILE;
+	  $copy_to = WPMU_PLUGIN_DIR . self::MU_FILE;
+	  if ( ! file_exists($copy_to) ) {
+		  copy($copy_from, $copy_to);
+      $file = file($copy_from);
+      unset($file[1]);
+      array_pop($file);
+      file_put_contents($copy_to, $file);
+	  }
+
+  }
+
+  /* Public: Removes the file created on activation in the Must-Use plugins folder.
+   *
+   * Returns nothing.
+   */
+  public function deactivate() {
+    if( file_exists(WPMU_PLUGIN_DIR . self::MU_FILE) ) {
+      unlink(WPMU_PLUGIN_DIR . self::MU_FILE);
+    }
+  }
+
+  protected function set_site_path_regex() {
+    if($this->is_forwarding && array_key_exists('HTTP_X_FORWARDED_PATH',$_SERVER)) {
+      $this->site_path_regex = "/^".str_replace('/','\/',$_SERVER['HTTP_X_FORWARDED_PATH']).'/';
+    } else {
+      $this->site_path_regex = '//';
+    }
   }
 
   protected function detect_ssl() {
@@ -29,6 +83,7 @@ class PortlyHost {
     add_filter('plugins_url',    array(&$this, 'plugins_url'), 100);
     add_filter('theme_root_uri', array(&$this, 'theme_root_uri'), 100);
     add_filter('upload_dir',     array(&$this, 'upload_dir'), 100);
+    add_filter('wp_redirect',    array(&$this, 'filter_url'), 100);
   }
 
   protected function disable_filters() {
@@ -40,23 +95,52 @@ class PortlyHost {
     remove_filter('upload_dir',     array(&$this, 'upload_dir'), 100);
   }
 
+  /* Internal: Alters the REQUEST_URI server variable so that add_query_params() and potentially
+   * other methods don't inject a bad path.
+   *
+   * Returns nothing.
+   */
+  protected function alter_request_uri() {
+    if ($this->is_forwarding) {
+      $_SERVER["REQUEST_URI"] = preg_replace($this->site_path_regex,'',$_SERVER['REQUEST_URI']);
+    }
+  }
+
+  /* Internal: Defines the cookie paths so we can have authentication at the right place.
+   *
+   * Returns nothing.
+   */
+  protected function define_cookie_paths() {
+    if (!defined('COOKIEPATH')) {
+      define( 'COOKIEPATH', preg_replace( '|https?://[^/]+|i', '', get_option( 'home' ) . '/' ) );
+      define( 'SITECOOKIEPATH', preg_replace( '|https?://[^/]+|i', '', get_option( 'siteurl' ) . '/' ) );
+    };
+  }
+
   /*
-   * Internal: Filters the original host out of the URL and replaces it
+   * Public: Filters the original host out of the URL and replaces it
    * with the current host.
    *
    * Returns a String.
    */
-  protected function filter_url($url) {
+  public function filter_url($url) {
     $parse_url = parse_url($url);
-    $host = $_SERVER['HTTP_HOST'];
-    return
+
+    $host_and_path = $_SERVER['HTTP_HOST'];
+    if ($this->is_forwarding) {
+       $host_and_path .= isset($parse_url['path']) ? preg_replace($this->site_path_regex, '', $parse_url['path']) : '';
+    } else {
+       $host_and_path .= $parse_url['path'];
+    }
+
+    $new_url =
          ((isset($parse_url['scheme'])) ? $parse_url['scheme'] . '://' : '')
         .((isset($parse_url['user'])) ? $parse_url['user'] . ((isset($parse_url['pass'])) ? ':' . $parse_url['pass'] : '') .'@' : '')
-        .$host
-        .((isset($parse_url['path'])) ? $parse_url['path'] : '')
+        .$host_and_path
         .((isset($parse_url['query'])) ? '?' . $parse_url['query'] : '')
         .((isset($parse_url['fragment'])) ? '#' . $parse_url['fragment'] : '')
-    ;
+        ;
+    return $new_url;
   }
 
   /*
@@ -128,20 +212,5 @@ class PortlyHost {
 
 }
 
+$portly_router = new PortlyRouter();
 
-$portly_host = new PortlyHost();
-
-function portly_host_first() {
-  // ensure path to this file is via main wp plugin path
-  $wp_path_to_this_file = preg_replace('/(.*)plugins\/(.*)$/', WP_PLUGIN_DIR."/$2", __FILE__);
-  $this_plugin = plugin_basename(trim($wp_path_to_this_file));
-  $active_plugins = get_option('active_plugins');
-  $this_plugin_key = array_search($this_plugin, $active_plugins);
-  if ($this_plugin_key) { // if it's 0 it's the first plugin already, no need to continue
-    array_splice($active_plugins, $this_plugin_key, 1);
-    array_unshift($active_plugins, $this_plugin);
-    update_option('active_plugins', $active_plugins);
-  }
-}
-
-add_action("activated_plugin", "portly_host_first");
