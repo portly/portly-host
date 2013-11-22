@@ -45,6 +45,7 @@ class PortlyRouter {
 	  if ( ! file_exists($copy_to) ) {
 		  copy($copy_from, $copy_to);
       $file = file($copy_from);
+      $file[7] = 'include_once WP_PLUGIN_DIR . "/' . plugin_basename( __FILE__ ) . '";';
       unset($file[1]);
       array_pop($file);
       file_put_contents($copy_to, $file);
