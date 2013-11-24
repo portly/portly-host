@@ -40,15 +40,11 @@ class PortlyRouter {
 
 	  if ( ! is_dir(WPMU_PLUGIN_DIR)) mkdir(WPMU_PLUGIN_DIR);
 
- 	  $copy_from = __DIR__ . self::MU_FILE;
 	  $copy_to = WPMU_PLUGIN_DIR . self::MU_FILE;
 	  if ( ! file_exists($copy_to) ) {
-		  copy($copy_from, $copy_to);
-      $file = file($copy_from);
-      $file[7] = 'include_once WP_PLUGIN_DIR . "/' . plugin_basename( __FILE__ ) . '";';
-      unset($file[1]);
-      array_pop($file);
-      file_put_contents($copy_to, $file);
+      $contents = "<?php\n// PORTLY ROUTER.\n// Allows a site to be accessed from a public domain\n// without configuring MAMP or altering the site URL.\n\ndefine(\"PORTLY_MU_INSTALLED\", 1.0);\n";
+      $contents .= 'include_once WP_PLUGIN_DIR . "/' . plugin_basename( __FILE__ ) . '";';
+      file_put_contents($copy_to, $contents);
 	  }
 
   }
