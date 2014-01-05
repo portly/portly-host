@@ -2,10 +2,10 @@
 /*
 Plugin Name: Portly Router
 Plugin URI: http://github.com/portly/portly-router/
-Description: Zero-config plugin to use with <a href="https://getportly.com">Portly</a>.  Alters all WordPress-generated URLs according to the server's current hostname and handles reverse-proxy HTTPS connections. Essentially allows using a public domain without configuring VirtualHosts or altering the Site URL.
+Description: Zero-config plugin to use with <a href="https://portly.co">Portly</a>.  Alters all WordPress-generated URLs according to the server's current hostname and handles reverse-proxy HTTPS connections. Essentially allows using a public domain without configuring VirtualHosts or altering the Site URL.
 Author: Portly
 Version: 1.1.0
-Author URI: https://getportly.com
+Author URI: https://portly.co
  */
 
 class PortlyRouter {
