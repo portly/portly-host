@@ -4,8 +4,8 @@ Plugin Name: Portly Router
 Plugin URI: http://github.com/portly/portly-router/
 Description: Zero-config plugin to use with <a href="https://portly.co">Portly</a>.  Alters all WordPress-generated URLs according to the server's current hostname and handles reverse-proxy HTTPS connections. Essentially allows using a public domain without configuring VirtualHosts or altering the Site URL.
 Author: Portly
-Version: 1.1.0
-Author URI: https://portly.co
+Version: 1.2.0
+Author URI: https://getportly.com
  */
 
 class PortlyRouter {
@@ -15,6 +15,7 @@ class PortlyRouter {
   public function __construct() {
 
     $this->is_forwarding = array_key_exists('HTTP_X_FORWARDED_HOST', $_SERVER);
+    $this->original_site_url = network_site_url();
     $this->set_site_path_regex();
     $this->detect_ssl();
     $this->enable_filters();
@@ -74,6 +75,7 @@ class PortlyRouter {
   }
 
   protected function enable_filters() {
+    add_filter('the_content',    array(&$this, 'content_substitution'), 100);
     add_filter('content_url',    array(&$this, 'content_url'), 100);
     add_filter('option_home',    array(&$this, 'option_home'), 100);
     add_filter('option_siteurl', array(&$this, 'option_siteurl'), 100);
@@ -84,12 +86,20 @@ class PortlyRouter {
   }
 
   protected function disable_filters() {
+    remove_filter('the_content',    array(&$this, 'content_substitution'), 100);
     remove_filter('content_url',    array(&$this, 'content_url'), 100);
     remove_filter('option_home',    array(&$this, 'option_home'), 100);
     remove_filter('option_siteurl', array(&$this, 'option_siteurl'), 100);
     remove_filter('plugins_url',    array(&$this, 'plugins_url'), 100);
     remove_filter('theme_root_uri', array(&$this, 'theme_root_uri'), 100);
     remove_filter('upload_dir',     array(&$this, 'upload_dir'), 100);
+  }
+
+  public function content_substitution($content) {
+    $site_url = preg_quote($this->original_site_url, '/');
+    return preg_replace_callback("/$site_url/", function($m) {
+      return $this->filter_url($m[0]);
+    }, $content);
   }
 
   /* Internal: Alters the REQUEST_URI server variable so that add_query_params() and potentially
