@@ -4,8 +4,8 @@ Plugin Name: Portly Router
 Plugin URI: http://github.com/portly/portly-router/
 Description: Zero-config plugin to use with <a href="https://portly.co">Portly</a>.  Alters all WordPress-generated URLs according to the server's current hostname and handles reverse-proxy HTTPS connections. Essentially allows using a public domain without configuring VirtualHosts or altering the Site URL.
 Author: Portly
-Version: 1.2.0
-Author URI: https://getportly.com
+Version: 1.2.1
+Author URI: https://portly.co
  */
 
 class PortlyRouter {
@@ -137,11 +137,11 @@ class PortlyRouter {
     if ($this->is_forwarding) {
        $host_and_path .= isset($parse_url['path']) ? preg_replace($this->site_path_regex, '', $parse_url['path']) : '';
     } else {
-       $host_and_path .= $parse_url['path'];
+       $host_and_path .= isset($parse_url['path']) ? $parse_url['path'] : '';
     }
 
     $new_url =
-         ((isset($parse_url['scheme'])) ? $parse_url['scheme'] . '://' : '')
+         ((isset($parse_url['scheme'])) ? $parse_url['scheme'] . '://' : 'http://')
         .((isset($parse_url['user'])) ? $parse_url['user'] . ((isset($parse_url['pass'])) ? ':' . $parse_url['pass'] : '') .'@' : '')
         .$host_and_path
         .((isset($parse_url['query'])) ? '?' . $parse_url['query'] : '')
@@ -220,4 +220,3 @@ class PortlyRouter {
 }
 
 $portly_router = new PortlyRouter();
-
