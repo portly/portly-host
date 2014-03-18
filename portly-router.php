@@ -131,6 +131,9 @@ class PortlyRouter {
    * Returns a String.
    */
   public function filter_url($url) {
+    if (!preg_match("/^https?\:\/\//",$url)) {
+      return $url;
+    }
     $parse_url = parse_url($url);
 
     $host_and_path = $_SERVER['HTTP_HOST'];
